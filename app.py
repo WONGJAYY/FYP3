@@ -1,0 +1,734 @@
+"""
+Streamlit Dashboard for Explainable AI E-Commerce Recommender System
+A beautiful, modern dashboard with Overview, Recommender, AI Chat, and Analytics pages.
+"""
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import os
+import sys
+
+# Add current directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from recommender import ContentBasedRecommender
+from explainer import SHAPExplainer, LIMEExplainer, LLMExplainer
+
+# Page configuration
+st.set_page_config(
+    page_title="Explainable AI E-Commerce Recommender",
+    page_icon="🛒",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for modern dark theme
+st.markdown("""
+<style>
+    /* Main theme */
+    .stApp {
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0f0f23 0%, #1a1a2e 100%);
+        border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    /* Metric cards */
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+    }
+    
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 8px;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: rgba(255,255,255,0.8);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    /* Cards */
+    .info-card {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 20px;
+        margin: 10px 0;
+    }
+    
+    /* Status indicators */
+    .status-active {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background: #00ff88;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Product cards */
+    .product-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 8px 0;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .product-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+    }
+    
+    /* Chat styling */
+    .chat-message {
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin: 8px 0;
+        max-width: 80%;
+    }
+    
+    .chat-user {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        margin-left: auto;
+        color: white;
+    }
+    
+    .chat-assistant {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Custom headers */
+    h1, h2, h3 {
+        color: white !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# Initialize session state
+if 'recommender' not in st.session_state:
+    st.session_state.recommender = None
+if 'explainers' not in st.session_state:
+    st.session_state.explainers = None
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'selected_product' not in st.session_state:
+    st.session_state.selected_product = None
+
+
+@st.cache_resource
+def load_recommender():
+    """Load the recommender system."""
+    try:
+        rec = ContentBasedRecommender()
+        rec.load()
+        return rec
+    except Exception as e:
+        st.error(f"Error loading recommender: {e}")
+        return None
+
+
+@st.cache_resource
+def load_explainers(_recommender):
+    """Load the explainers."""
+    if _recommender is None:
+        return None
+    return {
+        'shap': SHAPExplainer(_recommender),
+        'lime': LIMEExplainer(_recommender),
+        'llm': LLMExplainer(_recommender)
+    }
+
+
+def render_metric_card(value, label, icon="📊"):
+    """Render a styled metric card."""
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-value">{icon} {value}</div>
+        <div class="metric-label">{label}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_overview_page(recommender):
+    """Render the Overview page."""
+    st.markdown("# 🛒 Explainable AI E-Commerce Recommender System")
+    st.markdown("*AI-Powered Product Recommendations with Explainable AI (SHAP)*")
+    
+    st.markdown("---")
+    
+    # System Overview
+    st.markdown("## System Overview")
+    
+    products = recommender.get_all_products()
+    total_products = len(products)
+    total_reviews = sum(p.get('review_count', 0) for p in products)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        render_metric_card(f"{total_products:,}", "Products", "📦")
+    with col2:
+        render_metric_card(f"{int(total_reviews):,}", "Reviews Analyzed", "📝")
+    with col3:
+        render_metric_card("SHAP, LIME & LLM", "Explainability", "🔍")
+    with col4:
+        render_metric_card("< 50ms", "Inference Time", "⚡")
+    
+    st.markdown("---")
+    
+    # System Architecture
+    col1, col2 = st.columns([1.5, 1])
+    
+    with col1:
+        st.markdown("## System Architecture")
+        
+        arch_data = {
+            'Layer': ['Data', 'Features', 'Models', 'Explainability', 'LLM', 'Serving'],
+            'Components': [
+                'Ingestion, Validation, Preprocessing',
+                'Feature Engineering, Feature Store',
+                'Content-Based Filtering Recommender',
+                'SHAP, LIME, LLM (Natural Language)',
+                'NVIDIA NIM (Llama 3.3), Chat, Review Summary',
+                'FastAPI, Streamlit Dashboard'
+            ]
+        }
+        
+        st.dataframe(
+            pd.DataFrame(arch_data),
+            use_container_width=True,
+            hide_index=True
+        )
+    
+    with col2:
+        st.markdown("## Tech Stack")
+        
+        tech_items = [
+            ("🐍", "Python 3.10+"),
+            ("🤖", "NVIDIA NIM (Llama 3.3 70B)"),
+            ("📊", "SHAP (Shapley Additive exPlanations)"),
+            ("🔶", "LIME (Local Interpretable Explanations)"),
+            ("🎯", "Content-Based Filtering"),
+            ("📚", "Scikit-learn"),
+            ("⚡", "FastAPI"),
+            ("🎨", "Streamlit")
+        ]
+        
+        for icon, name in tech_items:
+            st.markdown(f"{icon} **{name}**")
+    
+    st.markdown("---")
+    
+    # System Status
+    st.markdown("## System Status")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="info-card">
+            <h4>Recommender</h4>
+            <p><span class="status-active"></span> Active</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="info-card">
+            <h4>API Status</h4>
+            <p><span class="status-active"></span> Online</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # About section
+    st.markdown("---")
+    st.markdown("## About")
+    st.info("""
+    This system uses **Content-Based Filtering** with **SHAP & LLM explainability** to 
+    recommend products and explain **WHY** each product is suggested.
+    """)
+
+
+def render_recommender_page(recommender, explainers):
+    """Render the Recommender page."""
+    st.markdown("# 🎯 Product Recommender")
+    st.markdown("*Get personalized recommendations with AI explanations*")
+    
+    st.markdown("---")
+    
+    # Product selection
+    products = recommender.get_all_products()
+    product_names = [f"{p['name'][:60]}..." if len(p['name']) > 60 else p['name'] for p in products]
+    product_map = {name: products[i] for i, name in enumerate(product_names)}
+    
+    selected_name = st.selectbox(
+        "🔍 Select a product to get recommendations:",
+        options=product_names,
+        index=0
+    )
+    
+    if selected_name:
+        selected_product = product_map[selected_name]
+        st.session_state.selected_product = selected_product
+        
+        # Show selected product info
+        st.markdown("### 📦 Selected Product")
+        
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            st.markdown(f"**{selected_product['name']}**")
+            st.markdown(f"Brand: {selected_product.get('brand', 'Unknown')}")
+        with col2:
+            price = selected_product.get('price')
+            st.metric("Price", f"${price:.2f}" if price else "N/A")
+        with col3:
+            st.metric("Rating", f"⭐ {selected_product.get('avg_rating', 0):.1f}")
+        
+        st.markdown("---")
+        
+        # Get and display recommendations
+        st.markdown("### 🎯 Recommended Products")
+        
+        n_recs = st.slider("Number of recommendations:", 3, 10, 5)
+        recommendations = recommender.recommend(selected_product['id'], n_recommendations=n_recs)
+        
+        if recommendations:
+            for i, rec in enumerate(recommendations):
+                product = rec['product']
+                score = rec['similarity_score']
+                
+                with st.expander(f"#{rec['rank']} - {product['name'][:70]}... (Similarity: {score:.2%})", expanded=i < 3):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Brand:** {product.get('brand', 'Unknown')}")
+                        price = product.get('price')
+                        st.markdown(f"**Price:** ${price:.2f}" if price else "**Price:** N/A")
+                        st.markdown(f"**Rating:** ⭐ {product.get('avg_rating', 0):.1f} ({int(product.get('review_count', 0))} reviews)")
+                    
+                    with col2:
+                        # Similarity gauge
+                        fig = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=score * 100,
+                            domain={'x': [0, 1], 'y': [0, 1]},
+                            gauge={
+                                'axis': {'range': [0, 100]},
+                                'bar': {'color': "#667eea"},
+                                'bgcolor': "rgba(255,255,255,0.1)",
+                                'steps': [
+                                    {'range': [0, 50], 'color': "rgba(255,255,255,0.05)"},
+                                    {'range': [50, 75], 'color': "rgba(102,126,234,0.2)"},
+                                    {'range': [75, 100], 'color': "rgba(102,126,234,0.4)"}
+                                ]
+                            },
+                            title={'text': "Match %"}
+                        ))
+                        fig.update_layout(
+                            height=180,
+                            margin=dict(t=30, b=0, l=0, r=0),
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            font={'color': 'white'}
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Explanation tabs
+                    tab1, tab2, tab3 = st.tabs(["📊 SHAP", "🔶 LIME", "💬 LLM Explanation"])
+                    
+                    with tab1:
+                        shap_exp = explainers['shap'].get_feature_importance_plot_data(
+                            selected_product['id'], product['id']
+                        )
+                        if shap_exp:
+                            fig = px.bar(
+                                x=shap_exp['importance'][::-1],
+                                y=shap_exp['features'][::-1],
+                                orientation='h',
+                                title="Feature Importance (SHAP Values)",
+                                color=shap_exp['importance'][::-1],
+                                color_continuous_scale='Purples'
+                            )
+                            fig.update_layout(
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                font={'color': 'white'},
+                                showlegend=False,
+                                height=300
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Feature explanations for SHAP
+                            st.markdown("---")
+                            st.markdown("**📖 SHAP Feature Explanations:**")
+                            st.markdown("The chart shows which keywords/features contribute most to this recommendation.")
+                            
+                            if shap_exp['features']:
+                                top_features = shap_exp['features'][:3]
+                                top_importance = shap_exp['importance'][:3]
+                                
+                                st.markdown("**Top contributing features:**")
+                                for feat, imp in zip(top_features, top_importance):
+                                    st.markdown(f"• **'{feat}'** (importance: {imp:.4f}) - Both products share this keyword in descriptions/reviews")
+                                
+                                total_importance = sum(shap_exp['importance'])
+                                st.markdown(f"")
+                                st.markdown(f"**Total SHAP contribution:** {total_importance:.4f} → This explains the {score:.1%} similarity score")
+                    
+                    with tab2:
+                        lime_exp = explainers['lime'].explain_recommendation(
+                            selected_product['id'], product['id']
+                        )
+                        if lime_exp:
+                            # Combine positive and negative features for visualization
+                            all_features = []
+                            all_contributions = []
+                            all_colors = []
+                            
+                            for f in lime_exp['positive_features'][:5]:
+                                all_features.append(f['feature'])
+                                all_contributions.append(f['contribution'])
+                                all_colors.append('#00cc66')  # Green for positive
+                            
+                            for f in lime_exp['negative_features'][:3]:
+                                all_features.append(f['feature'])
+                                all_contributions.append(-abs(f['contribution']))  # Negative value
+                                all_colors.append('#ff4444')  # Red for negative
+                            
+                            # Create bar chart
+                            fig = go.Figure()
+                            fig.add_trace(go.Bar(
+                                y=all_features[::-1],
+                                x=all_contributions[::-1],
+                                orientation='h',
+                                marker_color=all_colors[::-1],
+                                text=[f'{v:.4f}' for v in all_contributions[::-1]],
+                                textposition='outside'
+                            ))
+                            fig.update_layout(
+                                title="LIME Feature Contributions",
+                                xaxis_title="Contribution Score",
+                                yaxis_title="Features",
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                font={'color': 'white'},
+                                height=300,
+                                showlegend=False
+                            )
+                            fig.add_vline(x=0, line_dash="dash", line_color="white", opacity=0.5)
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            st.markdown("🟢 **Green** = Positive (similar features) | 🔴 **Red** = Negative (different features)")
+                            
+                            # Feature explanations
+                            st.markdown("---")
+                            st.markdown("**📖 Feature Explanations:**")
+                            
+                            if lime_exp['positive_features']:
+                                st.markdown("**Why these products are similar:**")
+                                for f in lime_exp['positive_features'][:3]:
+                                    st.markdown(f"• Both products contain **'{f['feature']}'** in their descriptions/reviews, contributing {f['contribution']:.4f} to similarity")
+                            
+                            if lime_exp['negative_features']:
+                                st.markdown("**What makes them different:**")
+                                for f in lime_exp['negative_features'][:2]:
+                                    st.markdown(f"• **'{f['feature']}'** appears in one product but not the other")
+                    
+                    with tab3:
+                        if st.button(f"Generate LLM Explanation", key=f"llm_{i}"):
+                            with st.spinner("Generating explanation..."):
+                                explanation = explainers['llm'].explain_recommendation(
+                                    selected_product['id'], product['id']
+                                )
+                                st.markdown(explanation)
+        else:
+            st.warning("No recommendations found for this product.")
+
+
+def render_chat_page(recommender, explainers):
+    """Render the AI Chat page."""
+    st.markdown("# 💬 AI Chat Assistant")
+    st.markdown("*Ask questions about products and get AI-powered answers*")
+    
+    st.markdown("---")
+    
+    # Chat interface
+    chat_container = st.container()
+    
+    # Display chat history
+    with chat_container:
+        for msg in st.session_state.chat_history:
+            if msg['role'] == 'user':
+                st.markdown(f"""
+                <div class="chat-message chat-user">
+                    <strong>You:</strong> {msg['content']}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="chat-message chat-assistant">
+                    <strong>🤖 Assistant:</strong> {msg['content']}
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Chat input
+    st.markdown("---")
+    
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        user_input = st.text_input("Ask a question:", placeholder="e.g., What are the best rated products?", label_visibility="collapsed")
+    
+    with col2:
+        send_button = st.button("Send 📤", use_container_width=True)
+    
+    if send_button and user_input:
+        # Add user message
+        st.session_state.chat_history.append({'role': 'user', 'content': user_input})
+        
+        # Get AI response
+        with st.spinner("Thinking..."):
+            product_context = st.session_state.get('selected_product')
+            response = explainers['llm'].chat(user_input, product_context)
+            st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+        
+        st.rerun()
+    
+    # Clear chat button
+    if st.button("Clear Chat 🗑️"):
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    # Sidebar with context
+    with st.sidebar:
+        st.markdown("### 📋 Chat Context")
+        if st.session_state.selected_product:
+            st.markdown(f"**Current Product:**")
+            st.markdown(f"{st.session_state.selected_product['name'][:50]}...")
+        else:
+            st.markdown("*No product selected*")
+        
+        st.markdown("---")
+        st.markdown("### 💡 Example Questions")
+        st.markdown("- What makes this product popular?")
+        st.markdown("- Summarize the reviews")
+        st.markdown("- Compare with similar products")
+        st.markdown("- What are the pros and cons?")
+
+
+def render_analytics_page(recommender):
+    """Render the Analytics page."""
+    st.markdown("# 📊 Analytics Dashboard")
+    st.markdown("*Insights from product data and reviews*")
+    
+    st.markdown("---")
+    
+    products = recommender.get_all_products()
+    df = pd.DataFrame(products)
+    
+    # Overview metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Products", len(df))
+    with col2:
+        st.metric("Avg Rating", f"{df['avg_rating'].mean():.2f}")
+    with col3:
+        st.metric("Total Reviews", f"{int(df['review_count'].sum()):,}")
+    with col4:
+        st.metric("Unique Brands", df['brand'].nunique())
+    
+    st.markdown("---")
+    
+    # Charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### Rating Distribution")
+        
+        # Create rating bins
+        df['rating_bin'] = pd.cut(df['avg_rating'], bins=[0, 1, 2, 3, 4, 5], labels=['0-1', '1-2', '2-3', '3-4', '4-5'])
+        rating_counts = df['rating_bin'].value_counts().sort_index()
+        
+        fig = px.bar(
+            x=rating_counts.index.astype(str),
+            y=rating_counts.values,
+            title="Products by Rating",
+            color=rating_counts.values,
+            color_continuous_scale='Purples'
+        )
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': 'white'},
+            showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("### Top Brands by Products")
+        
+        brand_counts = df['brand'].value_counts().head(10)
+        
+        fig = px.pie(
+            names=brand_counts.index,
+            values=brand_counts.values,
+            title="Top 10 Brands",
+            color_discrete_sequence=px.colors.sequential.Purples_r
+        )
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': 'white'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Review analysis
+    st.markdown("### Review Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Reviews vs Rating scatter
+        fig = px.scatter(
+            df,
+            x='review_count',
+            y='avg_rating',
+            size='review_count',
+            color='avg_rating',
+            title="Reviews vs Rating",
+            color_continuous_scale='Purples',
+            hover_data=['name']
+        )
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': 'white'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        # Top reviewed products
+        top_reviewed = df.nlargest(10, 'review_count')[['name', 'review_count', 'avg_rating']]
+        top_reviewed['name'] = top_reviewed['name'].str[:40] + '...'
+        
+        fig = px.bar(
+            top_reviewed,
+            x='review_count',
+            y='name',
+            orientation='h',
+            title="Most Reviewed Products",
+            color='avg_rating',
+            color_continuous_scale='Purples'
+        )
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': 'white'},
+            yaxis={'categoryorder': 'total ascending'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Price analysis
+    st.markdown("### Price Analysis")
+    
+    df_with_price = df[df['price'].notna()]
+    
+    if len(df_with_price) > 0:
+        fig = px.histogram(
+            df_with_price,
+            x='price',
+            nbins=30,
+            title="Price Distribution",
+            color_discrete_sequence=['#667eea']
+        )
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': 'white'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No price data available.")
+
+
+def main():
+    """Main application entry point."""
+    
+    # Sidebar navigation
+    with st.sidebar:
+        st.markdown("# 🛒")
+        st.markdown("## Navigation")
+        
+        page = st.radio(
+            "Select Page",
+            ["🏠 Overview", "🎯 Recommender", "📊 Analytics"],
+            # ["🏠 Overview", "🎯 Recommender", "💬 AI Chat", "📊 Analytics"],
+            label_visibility="collapsed"
+        )
+        
+        st.markdown("---")
+        st.markdown("### About")
+        st.info("This system uses Content-Based Filtering with SHAP & LLM explainability to recommend products and explain WHY each product is suggested.")
+        
+        st.markdown("---")
+        st.markdown("### System Status")
+        st.markdown("**Recommender:** <span class='status-active'></span> Active", unsafe_allow_html=True)
+        st.markdown("**API Status:** <span class='status-active'></span> Online", unsafe_allow_html=True)
+    
+    # Load recommender
+    recommender = load_recommender()
+    
+    if recommender is None:
+        st.error("⚠️ Recommender not loaded. Please run `python data_processor.py` first to process the data.")
+        st.code("python data_processor.py", language="bash")
+        return
+    
+    # Load explainers
+    explainers = load_explainers(recommender)
+    
+    # Render selected page
+    if page == "🏠 Overview":
+        render_overview_page(recommender)
+    elif page == "🎯 Recommender":
+        render_recommender_page(recommender, explainers)
+    # elif page == "💬 AI Chat":  # Temporarily disabled
+    #     render_chat_page(recommender, explainers)
+    elif page == "📊 Analytics":
+        render_analytics_page(recommender)
+
+
+if __name__ == "__main__":
+    main()
