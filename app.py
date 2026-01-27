@@ -181,9 +181,8 @@ def render_metric_card(value, label, icon="📊"):
 def render_overview_page(recommender):
     """Render the Overview page."""
     st.markdown("# 🛒 Explainable AI E-Commerce Recommender System")
-    st.markdown("*AI-Powered Product Recommendations with Explainable AI (SHAP)*")
     
-    st.markdown("---")
+    st.markdown("-----")
     
     # System Overview
     st.markdown("## System Overview")
@@ -469,6 +468,62 @@ def render_recommender_page(recommender, explainers):
                                     selected_product['id'], product['id']
                                 )
                                 st.markdown(explanation)
+            
+            # Model Evaluation Section
+            st.markdown("---")
+            st.markdown("### 📈 Model Evaluation Metrics")
+            
+            # Calculate metrics from recommendations
+            similarity_scores = [rec['similarity_score'] for rec in recommendations]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Similarity Score Distribution Chart
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=[f"Rec #{i+1}" for i in range(len(similarity_scores))],
+                    y=[s * 100 for s in similarity_scores],
+                    marker_color=['#667eea' if s > 0.3 else '#ff6b6b' for s in similarity_scores],
+                    text=[f"{s:.1%}" for s in similarity_scores],
+                    textposition='outside'
+                ))
+                fig.update_layout(
+                    title="Recommendation Similarity Scores",
+                    xaxis_title="Recommendation",
+                    yaxis_title="Similarity (%)",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font={'color': 'white'},
+                    height=300,
+                    yaxis=dict(range=[0, 100])
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Metrics Summary
+                avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0
+                max_similarity = max(similarity_scores) if similarity_scores else 0
+                min_similarity = min(similarity_scores) if similarity_scores else 0
+                high_quality_recs = sum(1 for s in similarity_scores if s > 0.3)
+                
+                st.markdown("**📊 Performance Metrics:**")
+                
+                metric_col1, metric_col2 = st.columns(2)
+                with metric_col1:
+                    st.metric("Avg Similarity", f"{avg_similarity:.1%}")
+                    st.metric("Max Similarity", f"{max_similarity:.1%}")
+                with metric_col2:
+                    st.metric("Min Similarity", f"{min_similarity:.1%}")
+                    st.metric("High Quality Recs", f"{high_quality_recs}/{len(similarity_scores)}")
+                
+                # Quality indicator
+                if avg_similarity > 0.4:
+                    st.success("✅ Excellent recommendation quality!")
+                elif avg_similarity > 0.25:
+                    st.info("👍 Good recommendation quality")
+                else:
+                    st.warning("⚠️ Lower similarity - products may be less related")
         else:
             st.warning("No recommendations found for this product.")
 
