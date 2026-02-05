@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from recommender import ContentBasedRecommender
 from explainer import SHAPExplainer, LIMEExplainer, LLMExplainer
+from evaluator import RecommenderEvaluator
 
 # Page configuration
 st.set_page_config(
@@ -358,7 +359,7 @@ def render_recommender_page(recommender, explainers):
                             paper_bgcolor='rgba(0,0,0,0)',
                             font={'color': 'white'}
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True, key=f"gauge_{i}")
                     
                     # Explanation tabs
                     tab1, tab2, tab3 = st.tabs(["📊 SHAP", "🔶 LIME", "💬 LLM Explanation"])
@@ -383,7 +384,7 @@ def render_recommender_page(recommender, explainers):
                                 showlegend=False,
                                 height=300
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"shap_{i}")
                             
                             # Feature explanations for SHAP
                             st.markdown("---")
@@ -443,7 +444,7 @@ def render_recommender_page(recommender, explainers):
                                 showlegend=False
                             )
                             fig.add_vline(x=0, line_dash="dash", line_color="white", opacity=0.5)
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"lime_{i}")
                             
                             st.markdown("🟢 **Green** = Positive (similar features) | 🔴 **Red** = Negative (different features)")
                             
@@ -739,6 +740,181 @@ def render_analytics_page(recommender):
         st.info("No price data available.")
 
 
+def render_evaluation_page(recommender):
+    """Render the Evaluation page with RMSE metrics."""
+    st.markdown("# 📈 Model Evaluation")
+    st.markdown("*Assess recommendation quality using RMSE and other metrics*")
+    
+    st.markdown("---")
+    
+    # Initialize evaluator
+    evaluator = RecommenderEvaluator(recommender)
+    
+    # Evaluation controls
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        n_neighbors = st.slider("Number of Neighbors (K)", min_value=3, max_value=10, value=5)
+    
+    with col2:
+        test_size = st.selectbox("Test Size", [0.1, 0.2, 0.3], index=1)
+    
+    if st.button("🔄 Run Evaluation", type="primary"):
+        with st.spinner("Running RMSE evaluation..."):
+            # Run evaluation
+            rating_results = evaluator.evaluate_rating_prediction(
+                test_size=test_size, 
+                n_neighbors=n_neighbors
+            )
+            similarity_results = evaluator.evaluate_similarity_quality(n_recommendations=n_neighbors)
+        
+        st.markdown("---")
+        
+        # Display metrics
+        st.markdown("### 📊 Rating Prediction Metrics")
+        
+        if 'error' not in rating_results:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "RMSE", 
+                    f"{rating_results['rmse']:.4f}",
+                    help="Root Mean Square Error - Lower is better"
+                )
+            with col2:
+                st.metric(
+                    "MAE", 
+                    f"{rating_results['mae']:.4f}",
+                    help="Mean Absolute Error - Lower is better"
+                )
+            with col3:
+                st.metric(
+                    "Predictions Made", 
+                    rating_results['n_predictions'],
+                    help="Number of successful predictions"
+                )
+            
+            # Actual vs Predicted chart
+            st.markdown("### 📉 Actual vs Predicted Ratings")
+            
+            actual = rating_results['actual_ratings']
+            predicted = rating_results['predicted_ratings']
+            
+            fig = go.Figure()
+            
+            # Perfect prediction line
+            fig.add_trace(go.Scatter(
+                x=[1, 5], y=[1, 5],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='rgba(255,255,255,0.3)', dash='dash')
+            ))
+            
+            # Actual predictions
+            fig.add_trace(go.Scatter(
+                x=actual,
+                y=predicted,
+                mode='markers',
+                name='Predictions',
+                marker=dict(
+                    size=12,
+                    color=predicted,
+                    colorscale='Purples',
+                    showscale=True,
+                    colorbar=dict(title="Predicted")
+                )
+            ))
+            
+            fig.update_layout(
+                xaxis_title="Actual Rating",
+                yaxis_title="Predicted Rating",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font={'color': 'white'},
+                xaxis=dict(range=[0, 5.5], gridcolor='rgba(255,255,255,0.1)'),
+                yaxis=dict(range=[0, 5.5], gridcolor='rgba(255,255,255,0.1)')
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Error distribution
+            st.markdown("### 📊 Error Distribution")
+            
+            errors = [a - p for a, p in zip(actual, predicted)]
+            
+            fig = px.histogram(
+                x=errors,
+                nbins=20,
+                title="Prediction Error Distribution",
+                labels={'x': 'Error (Actual - Predicted)', 'y': 'Count'},
+                color_discrete_sequence=['#667eea']
+            )
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font={'color': 'white'}
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+        else:
+            st.warning(f"⚠️ {rating_results['error']}")
+        
+        st.markdown("---")
+        
+        # Similarity quality metrics
+        st.markdown("### 🎯 Recommendation Quality Metrics")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                "Brand Consistency",
+                f"{similarity_results['avg_brand_consistency']:.1%}",
+                help="How often recommendations share the same brand"
+            )
+        with col2:
+            st.metric(
+                "Avg Similarity Score",
+                f"{similarity_results['avg_similarity_score']:.4f}",
+                help="Average cosine similarity of recommendations"
+            )
+        
+        # RMSE Interpretation
+        st.markdown("---")
+        st.markdown("### 📝 Interpretation Guide")
+        
+        st.markdown("""
+        | Metric | Value | Interpretation |
+        |--------|-------|----------------|
+        | **RMSE** | {:.4f} | Average prediction error (same scale as ratings) |
+        | **MAE** | {:.4f} | Average absolute error |
+        | **Brand Consistency** | {:.1%} | Recommendations match product brands |
+        """.format(
+            rating_results.get('rmse', 0),
+            rating_results.get('mae', 0),
+            similarity_results['avg_brand_consistency']
+        ))
+        
+        st.info("💡 **RMSE Benchmark**: For a 1-5 rating scale, RMSE < 1.0 is generally considered good performance.")
+    
+    else:
+        st.info("👆 Click 'Run Evaluation' to calculate RMSE and other metrics")
+        
+        # Show formula
+        st.markdown("### 📐 RMSE Formula")
+        st.latex(r"RMSE = \sqrt{\frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2}")
+        
+        st.markdown(r"""
+        **Where:**
+        - $y_i$ = Actual rating
+        - $\hat{y}_i$ = Predicted rating  
+        - $n$ = Number of predictions
+        """)
+
+
 def main():
     """Main application entry point."""
     
@@ -749,7 +925,8 @@ def main():
         
         page = st.radio(
             "Select Page",
-            ["🏠 Overview", "🎯 Recommender", "📊 Analytics"],
+            ["🏠 Overview", "🎯 Recommender", "📈 Evaluation"],
+            # ["🏠 Overview", "🎯 Recommender", "📊 Analytics", "📈 Evaluation"],
             # ["🏠 Overview", "🎯 Recommender", "💬 AI Chat", "📊 Analytics"],
             label_visibility="collapsed"
         )
@@ -781,8 +958,10 @@ def main():
         render_recommender_page(recommender, explainers)
     # elif page == "💬 AI Chat":  # Temporarily disabled
     #     render_chat_page(recommender, explainers)
-    elif page == "📊 Analytics":
-        render_analytics_page(recommender)
+    # elif page == "📊 Analytics":  # Temporarily disabled
+    #     render_analytics_page(recommender)
+    elif page == "📈 Evaluation":
+        render_evaluation_page(recommender)
 
 
 if __name__ == "__main__":
