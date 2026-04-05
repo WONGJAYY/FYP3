@@ -463,7 +463,8 @@ def render_recommender_page(recommender, explainers):
                                     st.markdown(f"• **'{f['feature']}'** appears in one product but not the other")
                     
                     with tab3:
-                        if st.button(f"Generate LLM Explanation", key=f"llm_{i}"):
+                        # st.info("🔒 LLM Explanation is temporarily disabled.")
+                        if st.button(f"Generate LLM Explanation", key=f"llm_{i}", disabled=True):
                             with st.spinner("Generating explanation..."):
                                 explanation = explainers['llm'].explain_recommendation(
                                     selected_product['id'], product['id']
@@ -759,7 +760,7 @@ def render_evaluation_page(recommender):
     with col2:
         test_size = st.selectbox("Test Size", [0.1, 0.2, 0.3], index=1)
     
-    if st.button("🔄 Run Evaluation", type="primary"):
+    if st.button("Run Evaluation", type="primary"):
         with st.spinner("Running RMSE evaluation..."):
             # Run evaluation
             rating_results = evaluator.evaluate_rating_prediction(
@@ -903,16 +904,16 @@ def render_evaluation_page(recommender):
     else:
         st.info("👆 Click 'Run Evaluation' to calculate RMSE and other metrics")
         
-        # Show formula
-        st.markdown("### 📐 RMSE Formula")
-        st.latex(r"RMSE = \sqrt{\frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2}")
-        
-        st.markdown(r"""
-        **Where:**
-        - $y_i$ = Actual rating
-        - $\hat{y}_i$ = Predicted rating  
-        - $n$ = Number of predictions
-        """)
+        # # Show formula (Commented out)
+        # st.markdown("### 📐 RMSE Formula")
+        # st.latex(r"RMSE = \sqrt{\frac{1}{n} \sum_{i=1}^{n} (y_i - \hat{y}_i)^2}")
+        # 
+        # st.markdown(r"""
+        # **Where:**
+        # - $y_i$ = Actual rating
+        # - $\hat{y}_i$ = Predicted rating  
+        # - $n$ = Number of predictions
+        # """)
 
 
 def main():
