@@ -464,7 +464,7 @@ def render_recommender_page(recommender, explainers):
                     
                     with tab3:
                         # st.info("🔒 LLM Explanation is temporarily disabled.")
-                        if st.button(f"Generate LLM Explanation", key=f"llm_{i}", disabled=True):
+                        if st.button(f"Generate LLM Explanation", key=f"llm_{i}"):
                             with st.spinner("Generating explanation..."):
                                 explanation = explainers['llm'].explain_recommendation(
                                     selected_product['id'], product['id']
