@@ -761,13 +761,14 @@ def render_evaluation_page(recommender):
         test_size = st.selectbox("Test Size", [0.1, 0.2, 0.3], index=1)
     
     if st.button("Run Evaluation", type="primary"):
-        with st.spinner("Running RMSE evaluation..."):
+        with st.spinner("Running comprehensive evaluation (RMSE, MAE, Precision@K, NDCG@K)..."):
             # Run evaluation
             rating_results = evaluator.evaluate_rating_prediction(
                 test_size=test_size, 
                 n_neighbors=n_neighbors
             )
             similarity_results = evaluator.evaluate_similarity_quality(n_recommendations=n_neighbors)
+            ranking_results = evaluator.evaluate_ranking_metrics(k=n_neighbors)
         
         st.markdown("---")
         
@@ -866,21 +867,33 @@ def render_evaluation_page(recommender):
         st.markdown("---")
         
         # Similarity quality metrics
-        st.markdown("### 🎯 Recommendation Quality Metrics")
+        st.markdown("### 🎯 Recommendation Quality & Ranking Metrics")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
+            st.metric(
+                "Precision@K",
+                f"{ranking_results['precision@k']:.4f}",
+                help="Proportion of recommended items that are relevant"
+            )
+        with col2:
+            st.metric(
+                "NDCG@K",
+                f"{ranking_results['ndcg@k']:.4f}",
+                help="Normalized Discounted Cumulative Gain - considers ranking position"
+            )
+        with col3:
             st.metric(
                 "Brand Consistency",
                 f"{similarity_results['avg_brand_consistency']:.1%}",
                 help="How often recommendations share the same brand"
             )
-        with col2:
+        with col4:
             st.metric(
-                "Avg Similarity Score",
-                f"{similarity_results['avg_similarity_score']:.4f}",
-                help="Average cosine similarity of recommendations"
+                "Catalog Coverage",
+                f"{ranking_results['coverage']:.1%}",
+                help="Percentage of the item catalog recommended"
             )
         
         # RMSE Interpretation
@@ -892,10 +905,14 @@ def render_evaluation_page(recommender):
         |--------|-------|----------------|
         | **RMSE** | {:.4f} | Average prediction error (same scale as ratings) |
         | **MAE** | {:.4f} | Average absolute error |
+        | **Precision@K** | {:.4f} | Exact fraction of recommendations that are highly relevant (domain metric) |
+        | **NDCG@K** | {:.4f} | Quality of the item ranking order (position matters) |
         | **Brand Consistency** | {:.1%} | Recommendations match product brands |
         """.format(
             rating_results.get('rmse', 0),
             rating_results.get('mae', 0),
+            ranking_results['precision@k'],
+            ranking_results['ndcg@k'],
             similarity_results['avg_brand_consistency']
         ))
         
