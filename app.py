@@ -158,8 +158,8 @@ def load_recommender(data_dir='processed_data'):
 
 
 @st.cache_resource
-def load_explainers(_recommender):
-    """Load the explainers."""
+def load_explainers(_recommender, data_dir='processed_data'):
+    """Load the explainers. data_dir is used as a cache key to differentiate datasets."""
     if _recommender is None:
         return None
     return {
@@ -309,9 +309,16 @@ def render_recommender_page(recommender, explainers):
             st.markdown(f"Brand: {selected_product.get('brand', 'Unknown')}")
         with col2:
             price = selected_product.get('price')
-            st.metric("Price", f"${price:.2f}" if price else "N/A")
+            try:
+                st.metric("Price", f"${float(price):.2f}" if price else "N/A")
+            except (ValueError, TypeError):
+                st.metric("Price", "N/A")
         with col3:
-            st.metric("Rating", f"⭐ {selected_product.get('avg_rating', 0):.1f}")
+            try:
+                rating_val = float(selected_product.get('avg_rating', 0))
+            except (ValueError, TypeError):
+                rating_val = 0.0
+            st.metric("Rating", f"⭐ {rating_val:.1f}")
         
         st.markdown("---")
         
@@ -332,8 +339,17 @@ def render_recommender_page(recommender, explainers):
                     with col1:
                         st.markdown(f"**Brand:** {product.get('brand', 'Unknown')}")
                         price = product.get('price')
-                        st.markdown(f"**Price:** ${price:.2f}" if price else "**Price:** N/A")
-                        st.markdown(f"**Rating:** ⭐ {product.get('avg_rating', 0):.1f} ({int(product.get('review_count', 0))} reviews)")
+                        try:
+                            st.markdown(f"**Price:** ${float(price):.2f}" if price else "**Price:** N/A")
+                        except (ValueError, TypeError):
+                            st.markdown("**Price:** N/A")
+                        try:
+                            r_val = float(product.get('avg_rating', 0))
+                            rc_val = int(float(product.get('review_count', 0)))
+                        except (ValueError, TypeError):
+                            r_val = 0.0
+                            rc_val = 0
+                        st.markdown(f"**Rating:** ⭐ {r_val:.1f} ({rc_val} reviews)")
                     
                     with col2:
                         # Similarity gauge
@@ -948,10 +964,10 @@ def main():
                 "data_dir": "processed_data",
                 "available": True
             },
-            "Amazon Electronics Ratings": {
-                "description": "User-product ratings dataset",
-                "data_dir": "processed_data_electronics",
-                "available": False  # Change to True once dataset is processed
+            "Amazon Sales Dataset": {
+                "description": "Amazon product reviews & sales (amazon.csv)",
+                "data_dir": "processed_data_amazon",
+                "available": True
             }
         }
         
@@ -1005,7 +1021,7 @@ def main():
         return
     
     # Load explainers
-    explainers = load_explainers(recommender)
+    explainers = load_explainers(recommender, data_dir=dataset_info['data_dir'])
     
     # Render selected page
     if page == "🏠 Overview":
