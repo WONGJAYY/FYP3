@@ -757,7 +757,7 @@ def render_analytics_page(recommender):
         st.info("No price data available.")
 
 
-def render_evaluation_page(recommender):
+def render_evaluation_page(recommender, data_dir='processed_data'):
     """Render the Evaluation page with RMSE metrics."""
     st.markdown("# 📈 Model Evaluation")
     st.markdown("*Assess recommendation quality using RMSE and other metrics*")
@@ -765,7 +765,7 @@ def render_evaluation_page(recommender):
     st.markdown("---")
     
     # Initialize evaluator
-    evaluator = RecommenderEvaluator(recommender)
+    evaluator = RecommenderEvaluator(recommender, data_dir=data_dir)
     
     # Evaluation controls
     col1, col2 = st.columns([2, 1])
@@ -1033,7 +1033,7 @@ def main():
     # elif page == "📊 Analytics":  # Temporarily disabled
     #     render_analytics_page(recommender)
     elif page == "📈 Evaluation":
-        render_evaluation_page(recommender)
+        render_evaluation_page(recommender, data_dir=dataset_info['data_dir'])
 
 
 if __name__ == "__main__":

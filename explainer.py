@@ -247,11 +247,11 @@ class LLMExplainer:
 
 User was viewing: {source.get('name', 'Unknown Product')}
 - Brand: {source.get('brand', 'Unknown')}
-- Rating: {source.get('avg_rating', 0):.1f}/5
+- Rating: {float(source.get('avg_rating', 0)):.1f}/5
 
 Recommended product: {target.get('name', 'Unknown Product')}
 - Brand: {target.get('brand', 'Unknown')}
-- Rating: {target.get('avg_rating', 0):.1f}/5
+- Rating: {float(target.get('avg_rating', 0)):.1f}/5
 
 Key matching features: {', '.join(common_features) if common_features else 'Similar category'}
 Similarity score: {similarity_score:.2f}
@@ -307,8 +307,8 @@ Focus on:
             context = f"""Current product context:
 - Product: {product_context.get('name', 'Unknown')}
 - Brand: {product_context.get('brand', 'Unknown')}
-- Price: ${product_context.get('price', 0):.2f}
-- Rating: {product_context.get('avg_rating', 0):.1f}/5
+- Price: ${float(product_context.get('price', 0)):.2f}
+- Rating: {float(product_context.get('avg_rating', 0)):.1f}/5
 
 """
         

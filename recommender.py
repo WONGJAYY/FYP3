@@ -40,6 +40,13 @@ class ContentBasedRecommender:
         with open(os.path.join(self.data_dir, 'products.pkl'), 'rb') as f:
             self.products = pickle.load(f)
         
+        # Ensure numeric columns are properly typed (some datasets store as strings)
+        import pandas as pd
+        if 'avg_rating' in self.products.columns:
+            self.products['avg_rating'] = pd.to_numeric(self.products['avg_rating'], errors='coerce').fillna(0)
+        if 'review_count' in self.products.columns:
+            self.products['review_count'] = pd.to_numeric(self.products['review_count'], errors='coerce').fillna(0).astype(int)
+        
         # Load TF-IDF matrix
         with open(os.path.join(self.data_dir, 'tfidf_matrix.pkl'), 'rb') as f:
             self.tfidf_matrix = pickle.load(f)

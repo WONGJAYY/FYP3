@@ -158,7 +158,7 @@ def process_dataset(csv_path='amazon.csv', output_dir='processed_data_amazon'):
     products_df = products_df.merge(reviews_agg, on='id', how='left')
     
     # Set avg_rating and review_count from the dataset columns
-    products_df['avg_rating'] = products_df['rating'].fillna(0)
+    products_df['avg_rating'] = pd.to_numeric(products_df['rating'], errors='coerce').fillna(0)
     products_df['review_count'] = products_df['rating_count'].apply(parse_rating_count)
     
     # Fill missing values

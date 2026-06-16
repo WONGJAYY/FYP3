@@ -34,6 +34,9 @@ class RecommenderEvaluator:
         """Load product data with ratings."""
         with open(os.path.join(self.data_dir, 'products.pkl'), 'rb') as f:
             self.products = pickle.load(f)
+        # Ensure avg_rating is numeric (some datasets store it as string)
+        if 'avg_rating' in self.products.columns:
+            self.products['avg_rating'] = pd.to_numeric(self.products['avg_rating'], errors='coerce').fillna(0)
     
     def calculate_rmse(self, actual_ratings, predicted_ratings):
         """
@@ -72,7 +75,10 @@ class RecommenderEvaluator:
         weighted_sum = 0
         
         for rec in recommendations:
-            rating = rec['product'].get('avg_rating', 0)
+            try:
+                rating = float(rec['product'].get('avg_rating', 0))
+            except (ValueError, TypeError):
+                rating = 0.0
             similarity = rec['similarity_score']
             
             if rating > 0 and similarity > 0:
