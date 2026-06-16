@@ -146,10 +146,10 @@ if 'selected_product' not in st.session_state:
 
 
 @st.cache_resource
-def load_recommender():
+def load_recommender(data_dir='processed_data'):
     """Load the recommender system."""
     try:
-        rec = ContentBasedRecommender()
+        rec = ContentBasedRecommender(data_dir=data_dir)
         rec.load()
         return rec
     except Exception as e:
@@ -939,6 +939,33 @@ def main():
     # Sidebar navigation
     with st.sidebar:
         st.markdown("# 🛒")
+        
+        # ── Dataset Selector ──
+        st.markdown("## 📂 Dataset")
+        dataset_options = {
+            "E-Commerce Products": {
+                "description": "Product reviews & metadata (7817_1.csv)",
+                "data_dir": "processed_data",
+                "available": True
+            },
+            "Amazon Electronics Ratings": {
+                "description": "User-product ratings dataset",
+                "data_dir": "processed_data_electronics",
+                "available": False  # Change to True once dataset is processed
+            }
+        }
+        
+        selected_dataset = st.selectbox(
+            "Choose Dataset",
+            options=list(dataset_options.keys()),
+            index=0,
+            help="Select which dataset to use for recommendations"
+        )
+        
+        dataset_info = dataset_options[selected_dataset]
+        st.caption(f"ℹ️ {dataset_info['description']}")
+        
+        st.markdown("---")
         st.markdown("## Navigation")
         
         page = st.radio(
@@ -958,8 +985,19 @@ def main():
         st.markdown("**Recommender:** <span class='status-active'></span> Active", unsafe_allow_html=True)
         st.markdown("**API Status:** <span class='status-active'></span> Online", unsafe_allow_html=True)
     
-    # Load recommender
-    recommender = load_recommender()
+    # Check if the selected dataset is available
+    if not dataset_info['available']:
+        st.warning(f"⚠️ **{selected_dataset}** dataset is not yet available.")
+        st.info(
+            "To enable this dataset:\n"
+            "1. Download the dataset and place it in the project folder\n"
+            "2. Process it with the data processor\n"
+            "3. Update `dataset_options` in `app.py` to set `available: True`"
+        )
+        return
+    
+    # Load recommender with the selected dataset's data directory
+    recommender = load_recommender(data_dir=dataset_info['data_dir'])
     
     if recommender is None:
         st.error("⚠️ Recommender not loaded. Please run `python data_processor.py` first to process the data.")
